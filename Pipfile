@@ -1,0 +1,22 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+python-kasa = "*"
+gpiozero = "*"
+"rpi.gpio" = "*"
+numpy = "*"
+wiringpi = "*"
+python-vlc = "*"
+setuptools = "<65.6"
+importlib-metadata = "<5.1.0"
+pyyaml = "*"
+tqdm = "*"
+
+[dev-packages]
+ipykernel = "*"
+
+[requires]
+python_version = "3.9"
