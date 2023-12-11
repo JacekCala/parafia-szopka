@@ -1,20 +1,9 @@
-#%%
-
 import logging
 
 from kasa import SmartPlug, Discover, SmartDeviceException
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-# create a console handler and set level to debug
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-# create a formatter
-formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
-# add the formatter to the handler
-ch.setFormatter(formatter)
-# add the console handler to the logger
-logger.addHandler(ch)
 
 
 async def find_plug(plug_ip=None):
@@ -25,19 +14,19 @@ async def find_plug(plug_ip=None):
             dev = await Discover.discover_single(plug_ip)
             logger.info(f'Found single device: {dev}')
             if dev.is_plug:
-                device = dev.host
+                device = dev
             else:
                 logger.info(f'Device {dev.host} is not a SmartPlug')
                 device = None
         except SmartDeviceException as x:
-            logger.warning(f'Problems searching for device {plug_ip}: ', x)
+            logger.warning(f'Problems searching for device {plug_ip}: ', exc_info=x)
 
     if not device:
         found_devices = await Discover.discover()
-        for dev in found_devices:
+        for dev_name, dev in found_devices.items():
             logger.info(f'Found device: {dev}...')
-            if found_devices[dev].is_plug:
-                logger.info(f'Device is a SmartPlug.')
+            if dev.is_plug:
+                logger.info(f'Device {dev_name} is a SmartPlug.')
                 device = dev
                 break
             else:
@@ -46,25 +35,21 @@ async def find_plug(plug_ip=None):
     return device
 
 
-async def switch_on(dev_info):
+async def switch_on(device):
     logger.info('Switching lights on...')
     try:
-        p = SmartPlug(dev_info)
-
-        await p.update()
-        logger.debug(p.alias)
-        await p.turn_on()
+        await device.update()
+        logger.debug(device.alias)
+        await device.turn_on()
     except SmartDeviceException as x:
-        logger.error(f'SmartPlug error: {x}')
+        logger.error('SmartPlug error: ', exc_info=x)
 
 
-async def switch_off(dev_info):
+async def switch_off(device):
     logger.info('Switching lights off...')
     try:
-        p = SmartPlug(dev_info)
-
-        await p.update()
-        logger.debug(p.alias)
-        await p.turn_off()
+        await device.update()
+        logger.debug(device.alias)
+        await device.turn_off()
     except SmartDeviceException as x:
-        logger.error(f'SmartPlug error: {x}')
+        logger.error('SmartPlug error: ', exc_info=x)
