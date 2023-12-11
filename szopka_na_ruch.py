@@ -114,9 +114,12 @@ async def main():
         while run_loop:
             line = read_utf8(arduino)
             if line:
-                j = json.loads(line)
-                if j['motion']:
-                    items_to_play = await run_action(player, items_to_play, mp3_files, plug)
+                try:
+                    j = json.loads(line)
+                    if j['motion']:
+                        items_to_play = await run_action(player, items_to_play, mp3_files, plug)
+                except json.JSONDecodeError as x:
+                    logging.warning(f'Error reading json data from the motion sensor: {line}', exc_info=x)
 
             if switch_lights_off:
                 if plug and player.get_state() != vlc.State.Playing:
