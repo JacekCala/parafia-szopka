@@ -1,2 +1,3 @@
 mp3-files-x: YOUR_MP3_DIRECTORY
 plug-ip: null
+default-lights-on-timeout: 30

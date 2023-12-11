@@ -4,27 +4,27 @@ import asyncio
 import glob
 import json
 import logging
-import platform
 import random
 import serial
 import signal
 import sys
+import threading
 import time
 import vlc
 import yaml
 
-from kasa import SmartPlug, Discover, SmartDeviceException
-
 import plug_utils
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+
 logging.getLogger('kasa').setLevel(logging.INFO)
 logging.getLogger('plug_utils').setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 CONFIG_FILE = 'config.yaml'
 
 run_loop = True
 switch_lights_off = True
+timer = None
 
 
 #%%
@@ -49,18 +49,24 @@ def sig_int(sig_no, stack_frame):
     logging.debug('Int.')
 
 
-async def run_action(player, items_to_play, all_items_to_play: list[str], plug=None):
+async def run_action(player, items_to_play, all_items_to_play: list[str], plug=None, lights_on_timeout=10):
+    global timer
 
     logging.debug('Running action...')
-    if player.get_state() != vlc.State.Playing:
+    if player.get_state() != vlc.State.Playing and not timer:
         if len(items_to_play) < 1:
             items_to_play = random.sample(all_items_to_play, len(all_items_to_play))
             logging.debug(f'Items to play: {items_to_play}')
 
-        next_item = items_to_play.pop()
-        logging.info(f'Playing file: {next_item}')
-        player.set_mrl(next_item)
-        player.play()
+        if items_to_play:
+            next_item = items_to_play.pop()
+            logging.info(f'Playing file: {next_item}')
+            player.set_mrl(next_item)
+            player.play()
+        else:
+            timer = threading.Timer(lights_on_timeout, switch_lights_off_func, args=[None])
+            timer.start()
+
         if plug:
             await plug_utils.switch_on(plug)
             logging.debug('Are lights switched on?')
@@ -68,16 +74,19 @@ async def run_action(player, items_to_play, all_items_to_play: list[str], plug=N
     return items_to_play
 
 
-def vlc_song_finished(event, **kwargs):
+def switch_lights_off_func(event, **kwargs):
     global switch_lights_off
+    global timer
 
     logging.debug('Song has finished.')
     switch_lights_off = True
+    timer = None
 
 
 async def main():
     global switch_lights_off
     global run_loop
+    global timer
 
     with open(CONFIG_FILE) as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
@@ -93,7 +102,7 @@ async def main():
     logging.info('Setting up the mp3 player and files...')
     player = vlc.MediaPlayer()
     event_manager = player.event_manager()
-    event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, vlc_song_finished)
+    event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, switch_lights_off_func)
     mp3_files = glob.glob(config.get('mp3-files', 'sample-mp3') + '/*.mp3')
     logging.info(f'Files to play: {mp3_files}')
     items_to_play = []
@@ -117,7 +126,7 @@ async def main():
                 try:
                     j = json.loads(line)
                     if j['motion']:
-                        items_to_play = await run_action(player, items_to_play, mp3_files, plug)
+                        items_to_play = await run_action(player, items_to_play, mp3_files, plug, config['default-lights-on-timeout'])
                 except json.JSONDecodeError as x:
                     logging.warning(f'Error reading json data from the motion sensor: {line}', exc_info=x)
 
@@ -131,6 +140,9 @@ async def main():
     
     if plug:
         await plug_utils.switch_off(plug)
+    if timer:
+        timer.cancel()
+        timer = None
     logging.info('Main loop finished.')
 
 
