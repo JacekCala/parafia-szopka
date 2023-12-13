@@ -153,5 +153,9 @@ if __name__ == '__main__':
     try:
         loop = asyncio.new_event_loop()
         loop.run_until_complete(main())
+    except Exception as x:
+        logging.error('Error occurred: ', exc_info=x)
+        print('\nNaciśnij Enter, aby zakończyć program.')
+        input()
     finally:
         logging.info('Done.')
