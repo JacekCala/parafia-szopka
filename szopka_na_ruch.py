@@ -14,11 +14,13 @@ import vlc
 import yaml
 
 import plug_utils
+import utils
 
 
-logging.getLogger('kasa').setLevel(logging.INFO)
-logging.getLogger('plug_utils').setLevel(logging.INFO)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+logging.getLogger('kasa').setLevel(logging.DEBUG)
+logging.getLogger('plug_utils').setLevel(logging.DEBUG)
+logger = utils.setup_logger(root_level=logging.DEBUG, file_level=logging.DEBUG, file_name='szopka.log')
+
 
 CONFIG_FILE = 'config.yaml'
 
@@ -46,21 +48,21 @@ def sig_int(sig_no, stack_frame):
     global run_loop
 
     run_loop = False
-    logging.debug('Int.')
+    logger.debug('Int.')
 
 
 async def run_action(player, items_to_play, all_items_to_play: list[str], plug=None, lights_on_timeout=10):
     global timer
 
-    logging.debug('Running action...')
+    logger.debug('Running action...')
     if player.get_state() != vlc.State.Playing and not timer:
         if len(items_to_play) < 1:
             items_to_play = random.sample(all_items_to_play, len(all_items_to_play))
-            logging.debug(f'Items to play: {items_to_play}')
+            logger.debug(f'Items to play: {items_to_play}')
 
         if items_to_play:
             next_item = items_to_play.pop()
-            logging.info(f'Playing file: {next_item}')
+            logger.info(f'Playing file: {next_item}')
             player.set_mrl(next_item)
             player.play()
         else:
@@ -69,7 +71,7 @@ async def run_action(player, items_to_play, all_items_to_play: list[str], plug=N
 
         if plug:
             await plug_utils.switch_on(plug)
-            logging.debug('Are lights switched on?')
+            logger.debug('Are lights switched on?')
 
     return items_to_play
 
@@ -78,7 +80,7 @@ def switch_lights_off_func(event, **kwargs):
     global switch_lights_off
     global timer
 
-    logging.debug('Song has finished.')
+    logger.debug('Song has finished.')
     switch_lights_off = True
     timer = None
 
@@ -94,22 +96,22 @@ async def main():
     plug = await plug_utils.find_plug(config.get('plug-ip', None))
 
     if plug:
-        logging.info(f'Found a plug {plug}.')
+        logger.info(f'Found a plug {plug}.')
         if plug.host != config.get('plug-ip', None):
             config['plug-ip'] = plug.host
             update_config(config)
 
-    logging.info('Setting up the mp3 player and files...')
+    logger.info('Setting up the mp3 player and files...')
     player = vlc.MediaPlayer()
     event_manager = player.event_manager()
     event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, switch_lights_off_func)
     mp3_files = glob.glob(config.get('mp3-files', 'sample-mp3') + '/*.mp3')
-    logging.info(f'Files to play: {mp3_files}')
+    logger.info(f'Files to play: {mp3_files}')
     items_to_play = []
 
     with serial.Serial(port='COM4', baudrate=115200, timeout=.1) as arduino:
 
-        logging.info('Waiting for the motion sensor to calibrate.')
+        logger.info('Waiting for the motion sensor to calibrate.')
         while run_loop:
             l = read_utf8(arduino)
             if l:
@@ -119,7 +121,7 @@ async def main():
                 sys.stdout.flush()
             time.sleep(0.1)
 
-        logging.info('Starting the main event loop...')
+        logger.info('Starting the main event loop...')
         while run_loop:
             line = read_utf8(arduino)
             if line:
@@ -128,12 +130,12 @@ async def main():
                     if j['motion']:
                         items_to_play = await run_action(player, items_to_play, mp3_files, plug, config['default-lights-on-timeout'])
                 except json.JSONDecodeError as x:
-                    logging.warning(f'Error reading json data from the motion sensor: {line}', exc_info=x)
+                    logger.warning(f'Error reading json data from the motion sensor: {line}', exc_info=x)
 
             if switch_lights_off:
                 if plug and player.get_state() != vlc.State.Playing:
                     await plug_utils.switch_off(plug)
-                    logging.debug('Are lights switched off?')
+                    logger.debug('Are lights switched off?')
                     switch_lights_off = False
 
             time.sleep(0.1)
@@ -143,7 +145,7 @@ async def main():
     if timer:
         timer.cancel()
         timer = None
-    logging.info('Main loop finished.')
+    logger.info('Main loop finished.')
 
 
 #%%
@@ -154,8 +156,8 @@ if __name__ == '__main__':
         loop = asyncio.new_event_loop()
         loop.run_until_complete(main())
     except Exception as x:
-        logging.error('Error occurred: ', exc_info=x)
+        logger.error('Error occurred: ', exc_info=x)
         print('\nNaciśnij Enter, aby zakończyć program.')
         input()
     finally:
-        logging.info('Done.')
+        logger.info('Done.\n')
