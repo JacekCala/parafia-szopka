@@ -52,7 +52,7 @@ def sig_int(sig_no, stack_frame):
     logger.debug('Int.')
 
 
-async def run_action(player, items_to_play, all_items_to_play: list[str], plug=None, lights_on_timeout=10):
+async def run_action(player, items_to_play, all_items_to_play: list[str], plug=None, lights_on_timeout=10, media_runtime_s=60):
     global timer
 
     logger.debug('Running action...')
@@ -64,7 +64,7 @@ async def run_action(player, items_to_play, all_items_to_play: list[str], plug=N
         if items_to_play:
             next_item = items_to_play.pop()
             logger.info(f'Playing file: {next_item}')
-            player.set_mrl(next_item)
+            player.set_mrl(next_item, f"run-time={media_runtime_s}")
             player.play()
         else:
             timer = threading.Timer(lights_on_timeout, switch_lights_off_func, args=[None])
@@ -149,7 +149,7 @@ async def main():
                                 items_to_play = []
                                 logger.info(f'Current period: {cur_period.name}, files to play: {cur_period.mp3_files}')
 
-                            items_to_play = await run_action(player, items_to_play, cur_period.mp3_files, plug, config['default-lights-on-timeout'])
+                            items_to_play = await run_action(player, items_to_play, cur_period.mp3_files, plug, config['default-lights-on-timeout'], media_runtime_s=config['media-runtime'])
 
                     except json.JSONDecodeError as x:
                         logger.warning(f'Error reading json data from the motion sensor: {line}', exc_info=x)

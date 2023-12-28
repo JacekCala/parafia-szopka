@@ -7,6 +7,8 @@ default-lights-on-timeout: 30
 default-night-time: "16:30"
 default-day-time: "7:30"
 
+media-runtime: 60
+
 start-date: "2023-12-03"
 
 periods:
