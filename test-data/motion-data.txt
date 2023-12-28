@@ -1,0 +1,16 @@
+{ "motion": 1, "timestamp":      0}
+{ "motion": 0, "timestamp":   1000}
+{ "motion": 0, "timestamp":   3000}
+{ "motion": 1, "timestamp":   5000}
+{ "motion": 1, "timestamp":  10000}
+{ "motion": 0, "timestamp":  11000}
+{ "motion": 1, "timestamp":  15000}
+{ "motion": 0, "timestamp":  17000}
+{ "motion": 1, "timestamp":  20000}
+{ "motion": 0, "timestamp":  23000}
+{ "motion": 1, "timestamp":  55000}
+{ "motion": 1, "timestamp": 100000}
+{ "motion": 0, "timestamp": 111000}
+{ "motion": 1, "timestamp": 215000}
+{ "motion": 0, "timestamp": 227000}
+{ "motion": 1, "timestamp": 320000}

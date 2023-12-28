@@ -16,6 +16,8 @@ import yaml
 
 import plug_utils
 import utils
+import periods
+import motion_reader as mr
 
 
 logging.getLogger('kasa').setLevel(logging.DEBUG)
@@ -25,8 +27,7 @@ logger = utils.setup_logger(root_level=logging.DEBUG, file_level=logging.DEBUG, 
 
 CONFIG_FILE = 'config.yaml'
 
-#run_loop = threading.Event()
-run_loop = True
+break_event = threading.Event()
 switch_lights_off = True
 timer = None
 
@@ -47,10 +48,7 @@ def update_config(conf):
 
 
 def sig_int(sig_no, stack_frame):
-    global run_loop
-
-    #run_loop.set()
-    run_loop = False
+    break_event.set()
     logger.debug('Int.')
 
 
@@ -90,7 +88,6 @@ def switch_lights_off_func(event, **kwargs):
 
 async def main():
     global switch_lights_off
-    global run_loop
     global timer
 
     with open(CONFIG_FILE) as f:
@@ -110,19 +107,22 @@ async def main():
             config['plug-ip'] = plug.host
             update_config(config)
 
-    logger.info('Setting up the mp3 player and files...')
+    logger.info('Setting up the mp3 player and files and folders...')
     player = vlc.MediaPlayer()
     event_manager = player.event_manager()
     event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, switch_lights_off_func)
-    mp3_files = glob.glob(config.get('mp3-files', 'sample-mp3') + '/*.mp3')
-    logger.info(f'Files to play: {mp3_files}')
+
+    pds = periods.read_periods(config, data_root=config.get('data-root', '.'))
+    cur_period = None
     items_to_play = []
 
-    while run_loop:
+    while not break_event.is_set():
+
         with serial.Serial(port='COM4', baudrate=115200, timeout=.1) as arduino:
+        #with mr.MotionReader('test-data/motion-data.txt', break_event=break_event) as arduino:
 
             logger.info('Waiting for the motion sensor to calibrate.')
-            while run_loop and dt.datetime.now().time() >= night_time and dt.datetime.now().time() < day_time:
+            while not break_event.is_set() and (dt.datetime.now().time() >= night_time or dt.datetime.now().time() < day_time):
                 l = read_utf8(arduino)
                 if l:
                     if l.startswith('{'):
@@ -131,14 +131,26 @@ async def main():
                     sys.stdout.flush()
                 time.sleep(0.1)
 
-            logger.info('Starting the main event loop...')
-            while run_loop and dt.datetime.now().time() >= night_time and dt.datetime.now().time() < day_time:
+            logger.info('Starting the action loop...')
+            while not break_event.is_set() and (dt.datetime.now().time() >= night_time or dt.datetime.now().time() < day_time):
                 line = read_utf8(arduino)
                 if line:
+                    logger.debug(line)
                     try:
                         j = json.loads(line)
                         if j['motion']:
-                            items_to_play = await run_action(player, items_to_play, mp3_files, plug, config['default-lights-on-timeout'])
+                            tmp_period = periods.find_period(pds, dt.datetime.now(), hint=cur_period)
+                            if not tmp_period:
+                                logger.info('Current date: {dt.datetime.strftime(dt.datetime.now(), "%Y-%m-%d")} is outside of defined periods.')
+                                break_event.set()
+                                break
+                            elif tmp_period != cur_period:
+                                cur_period = tmp_period
+                                items_to_play = []
+                                logger.info(f'Current period: {cur_period.name}, files to play: {cur_period.mp3_files}')
+
+                            items_to_play = await run_action(player, items_to_play, cur_period.mp3_files, plug, config['default-lights-on-timeout'])
+
                     except json.JSONDecodeError as x:
                         logger.warning(f'Error reading json data from the motion sensor: {line}', exc_info=x)
 
@@ -156,10 +168,13 @@ async def main():
             timer.cancel()
             timer = None
 
-        logger.info(f'Internal loop completed. Waiting for night time starting at {night_time}...')
-        # A simple hack to allow time.sleep to be interrupted by Ctrl+C on Windows.
+        logger.info(f'The action loop completed. Waiting for night time starting at {night_time}...')
+        # A simple hack to allow time.sleep(30) to be interrupted by Ctrl+C on Windows.
         # Unfortunately, much cleaner threading.Event().wait(timeout) cannot be stopped.
-        for _ in range(30): time.sleep(1)
+        i = 60
+        while not break_event.is_set() and i > 0:
+            time.sleep(0.5)
+            i -= 1
 
     logger.info('Main loop finished.')
 

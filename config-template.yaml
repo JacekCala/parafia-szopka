@@ -1,5 +1,24 @@
-mp3-files-x: YOUR_MP3_DIRECTORY
+data-root: YOUR_MP3_DIRECTORY
+
 plug-ip: null
+
 default-lights-on-timeout: 30
+
 default-night-time: "16:30"
 default-day-time: "7:30"
+
+start-date: "2023-12-03"
+
+periods:
+  - name: "advent-one"
+    end-date: "0001-12-17"
+    folder: "adwent-I"
+  - name: "advent-two"
+    end-date: "0001-12-25"
+    folder: "adwent-II"
+  - name: "christmas-one"
+    end-date: "0002-01-06"
+    folder: "boze-narodzenie"
+  - name: "christmas-two"
+    end-date: "0002-02-02"
+    folder: "po-objawieniu"
