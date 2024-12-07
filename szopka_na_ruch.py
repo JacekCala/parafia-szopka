@@ -122,7 +122,7 @@ async def main():
         #with mr.MotionReader('test-data/motion-data.txt', break_event=break_event) as arduino:
 
             logger.info('Waiting for the motion sensor to calibrate.')
-            while not break_event.is_set() and (dt.datetime.now().time() >= night_time or dt.datetime.now().time() < day_time):
+            while not break_event.is_set(): # and (dt.datetime.now().time() >= night_time or dt.datetime.now().time() < day_time):
                 l = read_utf8(arduino)
                 if l:
                     if l.startswith('{'):
@@ -141,7 +141,7 @@ async def main():
                         if j['motion']:
                             tmp_period = periods.find_period(pds, dt.datetime.now(), hint=cur_period)
                             if not tmp_period:
-                                logger.info('Current date: {dt.datetime.strftime(dt.datetime.now(), "%Y-%m-%d")} is outside of defined periods.')
+                                logger.info(f'Current date: {dt.datetime.strftime(dt.datetime.now(), "%Y-%m-%d")} is outside of defined periods.')
                                 break_event.set()
                                 break
                             elif tmp_period != cur_period:
